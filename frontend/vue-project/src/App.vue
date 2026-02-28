@@ -209,3 +209,89 @@
 
   </div>
 </template>
+
+<script>
+import api from '@/services/api';
+
+export default {
+  name: 'ConsultaCNPJ',
+  data() {
+    return {
+      cnpjInput: '',
+      empresa: null,
+      isLoading: false,
+      erro: null,
+    };
+  },
+  methods: {
+    async consultar() {
+      const limpo = this.cnpjInput.replace(/\D/g, '');
+      if (!limpo) { this.erro = 'Informe um CNPJ válido.'; return; }
+      if (limpo.length !== 14) { this.erro = 'O CNPJ deve ter 14 dígitos.'; return; }
+      this.isLoading = true;
+      this.erro = null;
+      this.empresa = null;
+      try {
+        const { data } = await api.get(`/cnpj/${limpo}`);
+        this.empresa = data;
+      } catch (err) {
+        this.erro = err.response?.data?.erro || 'Erro ao conectar com o servidor.';
+      } finally {
+        this.isLoading = false;
+      }
+    },
+
+    formatarCNPJ(e) {
+      let v = e.target.value.replace(/\D/g, '');
+      v = v.replace(/^(\d{2})(\d)/, '$1.$2');
+      v = v.replace(/^(\d{2})\.(\d{3})(\d)/, '$1.$2.$3');
+      v = v.replace(/\.(\d{3})(\d)/, '.$1/$2');
+      v = v.replace(/(\d{4})(\d)/, '$1-$2');
+      this.cnpjInput = v;
+      this.erro = null;
+    },
+
+    limpar() { this.cnpjInput = ''; this.empresa = null; this.erro = null; },
+
+    getIniciais(n) {
+      if (!n) return 'EM';
+      return n.trim().split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase();
+    },
+
+    getStatusPill(s) {
+      if (!s) return '';
+      const l = s.toLowerCase();
+      if (l.includes('ativa')) return 'pill-ativa';
+      if (l.includes('suspend') || l.includes('inapta')) return 'pill-suspensa';
+      if (l.includes('baixada') || l.includes('cancelada')) return 'pill-baixada';
+      return 'pill-outro';
+    },
+
+    formatarData(d) {
+      if (!d) return '—';
+      try {
+        const iso = d.includes('-') ? d : `${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}`;
+        return new Date(iso + 'T00:00:00').toLocaleDateString('pt-BR');
+      } catch { return d; }
+    },
+
+    formatarMoeda(v) {
+      if (!v) return '—';
+      return Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+    },
+
+    formatTel(ddd, tel) {
+      if (!ddd && !tel) return '—';
+      return `(${ddd || ''}) ${tel || ''}`.trim();
+    },
+
+    exportar() {
+      const blob = new Blob([JSON.stringify(this.empresa, null, 2)], { type: 'application/json' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `cnpj_${this.empresa.cnpj?.replace(/\D/g,'')}.json`;
+      a.click();
+    }
+  }
+};
+</script>
